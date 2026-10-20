@@ -1,0 +1,830 @@
+@startuml
+title Roster System - Class Diagram
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam nodesep 45
+skinparam ranksep 90
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #444444
+}
+hide empty members
+
+package "Boundary" as B #F3F9FF {
+    class WebFrontend {
+      +displayJobsAndWorkload(view : JobsWorkloadView) : void
+      +displayAvailabilityCalendar(calendar : AvailabilityCalendar) : void
+      +displayLateRequestForm(form : LateRequestForm) : void
+      +displayPreferences(view : PreferencesView) : void
+      +displayRejectionWarning(warning : String) : void
+      +displayUrgentOffer(offer : String) : void
+      +displayDashboard(view : DashboardView) : void
+      +displayAvailability(view : ManpowerAvailabilityView) : void
+      +displayRoster(view : RosterView) : void
+      +displayValidCandidates(positionId : String) : void
+      +displayComparison(comparison : Comparison) : void
+      +requestConfirmation(warnings : List<WarningRule>) : Boolean
+      +displayQueue(positions : List<CrewPosition>) : void
+      +displayLateRequests(requests : List<LateRequest>) : void
+      +displayAccounts(accounts : List<Staff>) : void
+      +displayEditOptions(options : List<String>) : void
+      +displayUnfilledCounts(counts : Map<String, Integer>) : void
+      +displayMessageResult(result : ResultMessage) : void
+      +displayEmptyState(notice : String) : void
+    }
+    class NotificationGateway {
+      +notifyManager(managerId : String, notification : Notification) : void
+      +notifyManager(recipientId : String, email : String,\n    notification : Notification) : void
+      +notifyJobAssigned(staffId : String, assignment : Assignment) : void
+      +notifyDriverChanged(otherDriverId : String,\n    assignment : Assignment) : void
+      +notifyDecision(staffId : String, request : LateRequest) : void
+      +notifyStaff(staffId : String, notification : Notification) : void
+      +notifyStaff(staffIds : List<String>,\n    notification : Notification) : void
+      +sendLink(account : Staff, link : ActivationLink) : void
+      +sendLinks(accounts : List<Staff>,\n    links : List<ActivationLink>) : void
+    }
+}
+
+package "Control" as C #FFFBF0 {
+      class JobsWorkloadController {
+        ' <trace id="UC-01" title="View My Jobs and Workload" />
+        +getJobsAndWorkload(employeeId : String) : JobsWorkloadView
+        -determineWeekIds(today : Date) : List<String>
+        -createWeekList(week : RosterWeek) : List<RosterWeek>
+        -addWeek(weeks : List<RosterWeek>, week : RosterWeek) : List<RosterWeek>
+        -markWeekAsEmpty(week : RosterWeek) : void
+      }
+      class AvailabilityController {
+        ' <trace id="UC-02" title="Manage Availability" />
+        +getNextCutoff(today : Date) : DateTime
+        +getAvailabilityCalendar(employeeId : String) : AvailabilityCalendar
+        +saveAvailability(employeeId : String,\n    selection : List<AvailabilityEntry>) : ResultMessage
+        -markUnenteredDatesUnavailable(entries : List<AvailabilityEntry>,\n    windowStart : Date, windowEnd : Date) : List<AvailabilityEntry>
+        -isInsideWindow(date : Date, today : Date) : Boolean
+        -recordSavedDate(date : Date) : void
+        -recordRejectedDate(date : Date, reason : String) : void
+      }
+      class LateRequestController {
+        ' <trace id="UC-03" title="Submit Late Request" />
+        +getLateRequestForm(employeeId : String, date : Date) : LateRequestForm
+        +submitLateRequest(employeeId : String, date : Date,\n    requestedAvailability : AvailabilityEntry,\n    reasonCategory : String) : ResultMessage
+        -setRecipient(managerId : String) : String
+      }
+      class PreferenceController {
+        ' <trace id="UC-04" title="Set Job Preferences" />
+        +getPreferences(staffId : String, weekId : String) : PreferencesView
+        +savePreferences(staffId : String, weekId : String,\n    preferences : JobPreference) : ResultMessage
+      }
+      class JobWithdrawalController {
+        ' <trace id="UC-05" title="Reject Job" />
+        ' <trace id="UC-14" title="Report Urgent Unavailability (extends UC-05)" />
+        +requestRejection(positionId : String, staffId : String) : String
+        +rejectJob(positionId : String, reasonCategory : String,\n    note : String, password : String) : ResultMessage
+        +reportUrgentUnavailability(positionId : String, staffId : String,\n    reasonCategory : String) : ResultMessage
+        -checkRejectionCutoff(assignment : Assignment, jobRole : JobRole) : Boolean
+        -checkNoteLength(note : String) : Boolean
+        -buildRejectionWarning(assignment : Assignment) : String
+        -buildUrgentUnavailabilityOffer(assignment : Assignment) : String
+        -buildRejectionNotification(position : CrewPosition,\n    reasonCategory : String, note : String) : Notification
+      }
+      class DashboardController {
+        ' <trace id="UC-06" title="View Workload Dashboard" />
+        +loadDashboard(weekId : String, managerId : String) : DashboardView
+        -rankLowestWorkload(workloads : List<StaffWorkload>) : List<StaffWorkload>
+        -findOverHours(workloads : List<StaffWorkload>) : List<StaffWorkload>
+        -classifyWorkload(workloads : List<StaffWorkload>) : Map<String, String>
+        -buildDashboard(workloads : List<StaffWorkload>,\n    bands : Map<String, String>,\n    lowestThree : List<StaffWorkload>,\n    overLimit : List<StaffWorkload>,\n    queueCounts : Map<String, Integer>) : DashboardView
+        -buildEmptyStateMessage() : String
+      }
+      class ManpowerAvailabilityController {
+        ' <trace id="UC-07" title="View Manpower Availability (drawn as AvailabilityController)" />
+        +loadAvailability(managerId : String) : ManpowerAvailabilityView
+        +filterAvailability(jobRole : JobRole,\n    baseLocation : String) : ManpowerAvailabilityView
+        +clearFilter() : ManpowerAvailabilityView
+        -buildAvailabilityGrid(managerStaff : List<Staff>,\n    availability : List<AvailabilityEntry>,\n    markers : List<Date>) : ManpowerAvailabilityView
+        -filterView(view : ManpowerAvailabilityView, jobRole : JobRole,\n    baseLocation : String) : ManpowerAvailabilityView
+      }
+      class AllocationController {
+        ' <trace id="UC-08" title="Allocate Weekly Jobs (draft roster)" />
+        ' <trace id="UC-15" title="Edit Published Roster (published roster)" />
+        +loadRoster(weekId : String, managerId : String) : RosterView
+        +selectJob(positionId : String) : List<String>
+        +assign(positionId : String, staffId : String) : RosterView
+        +unassign(positionId : String) : RosterView
+        -refreshValidOptions(validOptions : Map<String, List<Staff>>,\n    results : List<ValidationResult>) : Map<String, List<Staff>>
+        -findAffectedPairs(staffId : String,\n    positions : List<CrewPosition>) : Map<String, List<Staff>>
+        -buildRosterView(services : List<Service>,\n    positions : List<CrewPosition>,\n    validOptions : Map<String, List<Staff>>) : RosterView
+        -updateRosterView(assignment : Assignment, weeklyHours : Decimal,\n    validOptions : Map<String, List<Staff>>) : RosterView
+      }
+      class ComparisonController {
+        ' <trace id="UC-09" title="Compare Staff" />
+        +compare(staffIds : List<String>, positionId : String,\n    weekId : String) : Comparison
+        -buildComparison(allStaffDetails : List<StaffDetails>,\n    position : CrewPosition) : Comparison
+      }
+      class ValidationController {
+        ' <trace id="UC-10" title="Validate Crew Assignment" />
+        +validate(positionId : String, staffId : String,\n    reallocating : Boolean) : ValidationResult
+        +findValidCandidates(positionId : String,\n    reallocating : Boolean) : List<Staff>
+        -rankCandidates(candidates : List<Staff>,\n    onCallFirst : Boolean) : List<Staff>
+        -checkBlockingRules(position : CrewPosition, staffMember : Staff,\n    available : Boolean, staffAssignments : List<Assignment>,\n    reallocating : Boolean) : List<BlockingRule>
+        -checkWarningRules(position : CrewPosition, staffMember : Staff,\n    staffAssignments : List<Assignment>) : List<WarningRule>
+        -markAllowed() : ValidationResult
+        -markRefused(blockingRules : List<BlockingRule>) : ValidationResult
+        -markRefused(warnings : List<WarningRule>) : ValidationResult
+      }
+      class ReallocationController {
+        ' <trace id="UC-11" title="Reallocate Job" />
+        +loadQueue(managerId : String) : List<CrewPosition>
+        +replyToThread(positionId : String, text : String) : MessageThread
+        +reallocate(positionId : String, staffId : String) : ResultMessage
+      }
+      class LateRequestReviewController {
+        ' <trace id="UC-12" title="Review Late Requests (drawn as LateRequestController)" />
+        +loadLateRequests(managerId : String) : List<LateRequest>
+        +getRequestDetails(requestId : String) : LateRequestDetails
+        +decide(requestId : String, decision : Decision,\n    reason : String) : ResultMessage
+        -checkClashingJobs(request : LateRequest,\n    staffAssignments : List<Assignment>) : List<CrewPosition>
+        -checkReason(reason : String) : Boolean
+      }
+      class PublishController {
+        ' <trace id="UC-16" title="Publish Roster" />
+        +loadRosterSummary(weekId : String,\n    managerId : String) : Map<String, Integer>
+        +publishRoster(weekId : String, managerId : String) : ResultMessage
+        -checkManager(managerId : String) : Boolean
+      }
+      class AccountController {
+        ' <trace id="UC-13" title="Manage User Accounts (create, bulk create, activate, change existing)" />
+        +loadAccounts() : List<Staff>
+        +createAccount(accountDetails : AccountDetails) : ResultMessage
+        +bulkCreate(csvFile : File) : ResultMessage
+        +activateAccount(activationToken : String,\n    password : String) : ResultMessage
+        +changeAccount(accountId : String, action : AccountAction,\n    details : AccountDetails) : ResultMessage
+        -checkMandatoryFields(accountDetails : AccountDetails) : List<String>
+        -createLink(account : Staff, linkType : LinkType) : ActivationLink
+        -checkRows(rows : List<AccountDetails>, existingAccounts : List<Staff>,\n    accountList : List<Staff>) : List<AccountDetails>
+        -checkLinkNotExpired(account : Staff) : Boolean
+        -checkPasswordRules(password : String) : Boolean
+        -hashPassword(password : String) : String
+      }
+}
+
+package "Entity" as E #F4FBF5 {
+  package "People and accounts" as EP {
+    class StaffGroup {
+      +findStaff(staffId : String) : Staff
+      +findStaff(staffIds : List<String>) : List<Staff>
+      +getActiveStaff(managerId : String) : List<Staff>
+      +getWorkloads(managerId : String, weekId : String) : List<StaffWorkload>
+      +getAvailability(staff : List<Staff>, period : DateRange) : List<AvailabilityEntry>
+      +getManager(staffId : String) : String
+      +isResponsibleFor(managerId : String, jobRole : JobRole) : Boolean
+      +findEligibleStaff(position : CrewPosition, managerId : String) : List<Staff>
+      +findReallocationCandidates(position : CrewPosition,\n    managerId : String) : List<Staff>
+      +verifyPassword(staffId : String, password : String) : Boolean
+      +getAccounts() : List<Staff>
+      +findAccount(employeeId : String, email : String) : Staff
+      +findAccounts(rows : List<AccountDetails>) : List<Staff>
+      +findByActivationToken(token : String) : Staff
+      +addAccount(details : AccountDetails) : Staff
+      +addAccounts(rows : List<AccountDetails>) : List<Staff>
+      +activateAccount(accountId : String, passwordHash : String) : Staff
+      +updateAccount(accountId : String, details : AccountDetails) : Staff
+      +getJobsAfter(accountId : String, date : Date) : List<CrewPosition>
+      +setEndDate(accountId : String, endDate : Date) : Staff
+      +reactivateAccount(accountId : String) : Staff
+      +getAccount(accountId : String) : Staff
+      +setLegalHold(accountId : String, onHold : Boolean) : Staff
+      +addCover(coveringManagerId : String, coveredManagerId : String,\n    startDate : Date, endDate : Date) : CoverPeriod
+      +save(staff : Staff) : Staff
+    }
+    class Staff {
+      -employeeId : String
+      -fullName : String
+      -email : String
+      -mobile : String
+      -accessRole : AccessRole
+      -jobRole : JobRole
+      -baseLocation : String
+      -startDate : Date
+      -endDate : Date
+      -seniority : Integer
+      -active : Boolean
+      -legalHold : Boolean
+      -passwordHash : String
+      --
+      +getName() : String
+      +getEmail() : String
+      +getManagerId() : String
+      +getCrewJobRole() : JobRole
+      +getActiveAssignments(period : DateRange) : List<Assignment>
+      +getAssignments(weekId : String) : List<Assignment>
+      +getWeeklyHours(week : RosterWeek) : Decimal
+      +getMonthlyHours(month : Date) : Decimal
+      +getCandidateDetails(position : CrewPosition) : StaffDetails
+      +isAvailable(jobTime : DateRange) : Boolean
+      +getAvailabilityEntry(date : Date) : AvailabilityEntry
+      +getAvailabilityEntries(from : Date, to : Date) : List<AvailabilityEntry>
+      +saveAvailability(date : Date, type : AvailabilityType,\n    startTime : Time, endTime : Time) : AvailabilityEntry
+      +updateAvailability(change : AvailabilityEntry) : Staff
+    }
+    class CoverPeriodGroup {
+      +findCoveringManager(managerId : String, date : Date) : String
+    }
+    class JobPreference {
+      -direction : String
+      -timeBand : String
+      -daysOff : List<Date>
+      -noConsecutiveEarly : Boolean
+      -joinOnCall : Boolean
+      --
+      +findByStaffAndWeek(staffId : String, weekId : String) : JobPreference
+      +save(preferences : JobPreference) : JobPreference
+    }
+    class OnCallList {
+      +addStaff(staffId : String, weekId : String) : Boolean
+    }
+    class CoverPeriod {
+      -startDate : Date
+      -endDate : Date
+    }
+    class ManagerHistoryEntry {
+      -managerId : String
+      -fromDate : Date
+      -toDate : Date
+    }
+    class ActivationLink {
+      -token : String
+      -type : LinkType
+      -expiresAt : DateTime
+      -singleUse : Boolean
+    }
+  }
+  package "Availability" as EA {
+    class AvailabilityEntry {
+      -date : Date
+      -availabilityType : AvailabilityType
+      -allDay : Boolean
+      -startTime : Time
+      -endTime : Time
+      -submittedAt : DateTime
+      --
+      +set(type : AvailabilityType, startTime : Time, endTime : Time,\n    submittedAt : DateTime) : AvailabilityEntry
+      +covers(jobTime : DateRange) : Boolean
+      +getDetails() : AvailabilityEntry
+      +apply(change : AvailabilityEntry) : AvailabilityEntry
+    }
+    class ModifiedSchedule {
+      +getModifiedDates(from : Date, to : Date) : List<Date>
+    }
+  }
+  package "Roster and jobs" as ER {
+    class RosterWeekGroup {
+      +findByWeekId(weekId : String) : RosterWeek
+      +getRosterWeek(weekId : String) : RosterWeek
+      +findCrewPosition(positionId : String) : CrewPosition
+      +getQueuedPositions(managerId : String) : List<CrewPosition>
+      +getWeekId(date : Date) : String
+      +getAvailabilityWindow(today : Date) : DateRange
+    }
+    class RosterWeek {
+      -weekId : String
+      -status : RosterStatus
+      -availabilityCutoff : DateTime
+      -publishDeadline : DateTime
+      --
+      +getStatus() : RosterStatus
+      +isLocked(now : DateTime) : Boolean
+      +getServices() : List<Service>
+      +getPosition(positionId : String) : CrewPosition
+      +assignStaff(positionId : String, staffId : String) : Assignment
+      +unassignStaff(positionId : String) : CrewPosition
+      +getUnfilledCounts() : Map<String, Integer>
+      +getUnfilledPositions() : List<CrewPosition>
+      +publish() : PublishResult
+      +moveToReallocationQueue(positionId : String) : ReallocationRequest
+      +removeFromQueue(positionId : String) : List<ReallocationRequest>
+      +reassignStaff(positionId : String, staffId : String) : Assignment
+    }
+    class Service {
+      -serviceNumber : String
+      -departureTime : DateTime
+      -direction : String
+      -trainsetId : String
+      -carriages : Integer
+      -midpointHandoffStation : String
+      --
+      +getDetails() : Service
+      +getCoWorkers(crewPosition : CrewPosition, role : JobRole) : List<String>
+    }
+    class CrewPosition {
+      -positionId : String
+      -jobRole : JobRole
+      -weekId : String
+      -jobTime : DateRange
+      -departureStation : String
+      -carriagePair : Integer
+      -drivingLeg : DrivingLeg
+      -status : PositionStatus
+      --
+      +getService() : Service
+      +getOccupantName() : String
+      +getCarriagePair() : Integer
+      +getDrivingLeg() : DrivingLeg
+      +unassignStaff() : CrewPosition
+    }
+    class Assignment {
+      -state : AssignmentState
+      -workingHours : Decimal
+      --
+      +getWorkingHours() : Decimal
+      +getCrewPosition() : CrewPosition
+      +cancel() : Assignment
+    }
+  }
+  package "Requests and messaging" as EQ {
+    class LateRequest {
+      -date : Date
+      -requestedAvailability : AvailabilityEntry
+      -reasonCategory : String
+      -status : LateRequestStatus
+      -decidedBy : String
+      -decisionReason : String
+      -decidedAt : DateTime
+      --
+      +create(employeeId : String, date : Date,\n    requestedAvailability : AvailabilityEntry,\n    reasonCategory : String, status : LateRequestStatus) : LateRequest
+    }
+    class LateRequestQueue {
+      +add(recipientId : String, lateRequest : LateRequest) : Boolean
+    }
+    class LateRequestGroup {
+      +getPending(managerId : String) : List<LateRequest>
+      +findRequest(requestId : String) : LateRequest
+      +recordDecision(requestId : String, decision : Decision,\n    reason : String, managerId : String) : LateRequest
+    }
+    class RequestGroup {
+      +addReallocationRequest(position : CrewPosition,\n    reasonCategory : String, note : String) : ReallocationRequest
+      +getQueueCounts(managerId : String) : Map<String, Integer>
+    }
+    class ReallocationQueue {
+      +addJob(positionId : String, managerId : String,\n    status : RequestStatus, reasonCategory : String) : ReallocationRequest
+      +addJobs(jobs : List<CrewPosition>, managerId : String) : List<ReallocationRequest>
+    }
+    class ReallocationRequest {
+      -reason : ReallocationReason
+      -status : RequestStatus
+      -reasonCategory : String
+      -note : String
+      -managerId : String
+    }
+    class MessageThreadGroup {
+      +createThread(report : ReallocationRequest, staffId : String,\n    managerId : String) : MessageThread
+      +addMessage(positionId : String, managerId : String, text : String) : MessageThread
+    }
+    class MessageThread {
+      -createdAt : DateTime
+    }
+    class Message {
+      -text : String
+      -sentAt : DateTime
+    }
+    class Notification {
+      -recipientId : String
+      -channel : NotificationChannel
+      -subject : String
+      --
+      +create(recipientId : String, subject : String) : Notification
+    }
+  }
+  package "Audit" as EU {
+    class AuditRecordGroup {
+      +addRecord(action : String, target : String, adminId : String) : AuditRecord
+    }
+    class AuditRecord {
+      -action : String
+      -target : String
+      -performedAt : DateTime
+    }
+  }
+}
+
+package "Value objects (data passed between classes)" as V #FAFAFA {
+  class ValidationResult {
+    -outcome : ValidationOutcome
+    -blockingRules : List<BlockingRule>
+    -warnings : List<WarningRule>
+  }
+  class StaffDetails {
+    -availability : AvailabilityEntry
+    -weeklyHours : Decimal
+    -dailyHours : Decimal
+    -preferences : JobPreference
+    -onCall : Boolean
+    -locationAtDeparture : String
+    -recentRejections : Integer
+  }
+  class StaffWorkload {
+    -staffId : String
+    -name : String
+    -weeklyHours : Decimal
+  }
+  class DateRange {
+    -start : DateTime
+    -end : DateTime
+    -weekIds : List<String>
+  }
+  class ResultMessage {
+    -success : Boolean
+    -message : String
+  }
+  class PublishResult {
+    -published : Boolean
+    -staffIds : List<String>
+  }
+  class JobsWorkloadView {
+    -weekAssignments : Map<String, List<Assignment>>
+    -weeklyHours : Map<String, Decimal>
+    -monthlyHours : Decimal
+    -monthAssignments : List<Assignment>
+  }
+  class AvailabilityCalendar {
+    -entries : List<AvailabilityEntry>
+    -lockedWeekIds : List<String>
+    -modifiedDates : List<Date>
+    -window : DateRange
+  }
+  class LateRequestForm {
+    -date : Date
+    -currentAvailability : AvailabilityEntry
+  }
+  class PreferencesView {
+    -preferences : JobPreference
+    -locked : Boolean
+  }
+  class DashboardView {
+    -workloads : List<StaffWorkload>
+    -bands : Map<String, String>
+    -lowestThree : List<StaffWorkload>
+    -overLimit : List<StaffWorkload>
+    -queueCounts : Map<String, Integer>
+  }
+  class ManpowerAvailabilityView {
+    -staff : List<Staff>
+    -availability : List<AvailabilityEntry>
+    -markers : List<Date>
+  }
+  class RosterView {
+    -services : List<Service>
+    -positions : List<CrewPosition>
+    -validOptions : Map<String, List<Staff>>
+  }
+  class Comparison {
+    -staffDetails : List<StaffDetails>
+    -position : CrewPosition
+  }
+  class LateRequestDetails {
+    -request : LateRequest
+    -affectedPositions : List<CrewPosition>
+  }
+  class AccountDetails {
+    -fullName : String
+    -employeeId : String
+    -email : String
+    -mobile : String
+    -accessRole : AccessRole
+    -baseLocation : String
+    -startDate : Date
+    -endDate : Date
+    -jobRole : JobRole
+    -managerId : String
+  }
+}
+
+package "Enumerations" as EN #FFFFFF {
+  enum JobRole {
+    TrainConductor
+    AssistantConductor
+    Cleaner
+    EngineDriver
+  }
+  enum AccessRole {
+    Staff
+    Manager
+    ITAdministrator
+  }
+  enum RosterStatus {
+    Draft
+    Published
+  }
+  enum AvailabilityType {
+    Available
+    Unavailable
+  }
+  enum DrivingLeg {
+    First
+    Second
+  }
+  enum AssignmentState {
+    Active
+    Cancelled
+  }
+  enum PositionStatus {
+    Unfilled
+    Filled
+  }
+  enum LateRequestStatus {
+    Pending
+    Approved
+    Rejected
+  }
+  enum Decision {
+    Approve
+    Reject
+  }
+  enum NotificationChannel {
+    InSystem
+    Email
+    Push
+    SMS
+  }
+  enum ReallocationReason {
+    Rejection
+    UrgentUnavailability
+    RoleChange
+    Leaver
+    LateRequestClash
+    ManagerRemoval
+  }
+  enum RequestStatus {
+    Queued
+    AtRisk
+  }
+  enum LinkType {
+    Activation
+    PasswordReset
+  }
+  enum ValidationOutcome {
+    Allowed
+    Refused
+  }
+  enum BlockingRule {
+    RoleMismatch
+    Overlap
+    NotAvailable
+    AfterEndDate
+    DrivingLegOver2h
+  }
+  enum WarningRule {
+    Over40Hours
+    WrongDepartureStation
+    InsufficientRest
+  }
+  enum AccountAction {
+    Edit
+    DeactivateNow
+    SetEndDate
+    Reactivate
+    SendLink
+    LegalHold
+    SetCover
+  }
+}
+
+'=====================================================================
+' RELATIONSHIPS - structure (entities)
+'=====================================================================
+StaffGroup "1" o-- "*" Staff
+RosterWeekGroup "1" o-- "*" RosterWeek
+RosterWeek "1" *-- "*" Service
+Service "1" *-- "*" CrewPosition
+CrewPosition "1" -- "0..1" Assignment
+Staff "1" o-- "*" Assignment
+Staff "1" *-- "*" AvailabilityEntry
+Staff "1" *-- "*" JobPreference
+JobPreference "*" --> "1" RosterWeek
+Staff "managedBy\n*" --> "0..1" Staff
+OnCallList "1" o-- "*" Staff
+LateRequestQueue "1" o-- "*" LateRequest
+LateRequestGroup "1" o-- "*" LateRequest
+LateRequest "requestedBy\n*" --> "1" Staff
+Notification "*" --> "0..1" LateRequest
+ReallocationQueue "1" o-- "*" ReallocationRequest
+RequestGroup "1" o-- "*" ReallocationRequest
+ReallocationRequest "*" --> "1" CrewPosition
+MessageThreadGroup "1" o-- "*" MessageThread
+MessageThread "1" *-- "*" Message
+MessageThread "*" --> "1" ReallocationRequest
+MessageThread "participants\n*" --> "2" Staff
+Message "sentBy\n*" --> "1" Staff
+CoverPeriodGroup "1" o-- "*" CoverPeriod
+CoverPeriod "covering\n*" --> "1" Staff
+CoverPeriod "covered\n*" --> "1" Staff
+Staff "1" *-- "*" ManagerHistoryEntry
+Staff "1" *-- "*" ActivationLink
+AuditRecordGroup "1" o-- "*" AuditRecord
+AuditRecord "performedBy\n*" --> "1" Staff
+Staff ..> StaffDetails
+
+'=====================================================================
+' RELATIONSHIPS - boundary to control (class to class)
+'=====================================================================
+WebFrontend --> JobsWorkloadController
+WebFrontend --> AvailabilityController
+WebFrontend --> LateRequestController
+WebFrontend --> PreferenceController
+WebFrontend --> JobWithdrawalController
+WebFrontend --> DashboardController
+WebFrontend --> ManpowerAvailabilityController
+WebFrontend --> AllocationController
+WebFrontend --> ComparisonController
+WebFrontend --> ValidationController
+WebFrontend --> ReallocationController
+WebFrontend --> LateRequestReviewController
+WebFrontend --> PublishController
+WebFrontend --> AccountController
+ValidationController ..> WebFrontend
+
+'=====================================================================
+' RELATIONSHIPS - control to boundary (notifications)
+'=====================================================================
+LateRequestController --> NotificationGateway
+JobWithdrawalController --> NotificationGateway
+AllocationController --> NotificationGateway
+ReallocationController --> NotificationGateway
+LateRequestReviewController --> NotificationGateway
+PublishController --> NotificationGateway
+AccountController --> NotificationGateway
+
+'=====================================================================
+' RELATIONSHIPS - use-case include / extend between controllers
+'=====================================================================
+AvailabilityController "<<extend>>" ..> LateRequestController
+AllocationController "<<include>>" ..> ValidationController
+ReallocationController "<<include>>" ..> ValidationController
+AllocationController "<<extend>>" ..> ComparisonController
+
+'=====================================================================
+' RELATIONSHIPS - control to entity (class to class)
+'=====================================================================
+JobsWorkloadController --> StaffGroup
+JobsWorkloadController --> RosterWeekGroup
+AvailabilityController --> StaffGroup
+AvailabilityController --> RosterWeekGroup
+AvailabilityController --> ModifiedSchedule
+LateRequestController --> StaffGroup
+LateRequestController --> CoverPeriodGroup
+LateRequestController ..> LateRequest
+LateRequestController --> LateRequestQueue
+LateRequestController ..> Notification
+PreferenceController --> JobPreference
+PreferenceController --> OnCallList
+PreferenceController --> RosterWeek
+JobWithdrawalController --> StaffGroup
+JobWithdrawalController --> RosterWeekGroup
+JobWithdrawalController --> RequestGroup
+JobWithdrawalController --> ReallocationQueue
+JobWithdrawalController --> MessageThreadGroup
+DashboardController --> StaffGroup
+DashboardController --> RequestGroup
+ManpowerAvailabilityController --> StaffGroup
+ManpowerAvailabilityController --> RosterWeekGroup
+AllocationController --> StaffGroup
+AllocationController --> RosterWeekGroup
+AllocationController --> ReallocationQueue
+ComparisonController --> StaffGroup
+ComparisonController --> RosterWeekGroup
+ValidationController --> StaffGroup
+ValidationController --> RosterWeekGroup
+ValidationController ..> ValidationResult
+ReallocationController --> StaffGroup
+ReallocationController --> RosterWeekGroup
+ReallocationController --> MessageThreadGroup
+LateRequestReviewController --> StaffGroup
+LateRequestReviewController --> RosterWeekGroup
+LateRequestReviewController --> LateRequestGroup
+PublishController --> RosterWeekGroup
+AccountController --> StaffGroup
+AccountController --> AuditRecordGroup
+AccountController --> ReallocationQueue
+AccountController ..> ActivationLink
+
+
+'=====================================================================
+' RELATIONSHIPS - supporting types
+'=====================================================================
+JobsWorkloadController ..> JobsWorkloadView
+AvailabilityController ..> AvailabilityCalendar
+AvailabilityCalendar "1" *-- "1" DateRange
+LateRequestController ..> LateRequestForm
+PreferenceController ..> PreferencesView
+DashboardController ..> DashboardView
+ManpowerAvailabilityController ..> ManpowerAvailabilityView
+ManpowerAvailabilityController ..> DateRange
+AllocationController ..> RosterView
+ComparisonController ..> Comparison
+LateRequestReviewController ..> LateRequestDetails
+LateRequestController ..> ResultMessage
+PreferenceController ..> ResultMessage
+JobWithdrawalController ..> ResultMessage
+ReallocationController ..> ResultMessage
+LateRequestReviewController ..> ResultMessage
+PublishController ..> ResultMessage
+AccountController ..> ResultMessage
+AccountController ..> AccountDetails
+DashboardView "1" *-- "*" StaffWorkload
+StaffGroup ..> StaffWorkload
+RosterWeek ..> PublishResult
+CrewPosition "1" *-- "1" DateRange
+LateRequest "1" *-- "1" AvailabilityEntry
+Staff ..> AccessRole
+Staff ..> JobRole
+CrewPosition ..> JobRole
+CrewPosition ..> DrivingLeg
+CrewPosition ..> PositionStatus
+RosterWeek ..> RosterStatus
+AvailabilityEntry ..> AvailabilityType
+Assignment ..> AssignmentState
+LateRequest ..> LateRequestStatus
+Notification ..> NotificationChannel
+ReallocationRequest ..> ReallocationReason
+ReallocationRequest ..> RequestStatus
+ActivationLink ..> LinkType
+ValidationResult ..> ValidationOutcome
+ValidationResult ..> BlockingRule
+ValidationResult ..> WarningRule
+AccountDetails ..> AccessRole
+AccountDetails ..> JobRole
+LateRequestReviewController ..> Decision
+AccountController ..> AccountAction
+
+
+'=====================================================================
+' RELATIONSHIPS - supporting types
+'=====================================================================
+
+'=====================================================================
+' LAYOUT HELPERS (invisible)
+'=====================================================================
+WebFrontend -[hidden]down-> NotificationGateway
+NotificationGateway -[hidden]down-> JobsWorkloadController
+JobsWorkloadController -[hidden]right-> AvailabilityController
+AvailabilityController -[hidden]right-> LateRequestController
+PreferenceController -[hidden]right-> JobWithdrawalController
+JobsWorkloadController -[hidden]down-> PreferenceController
+DashboardController -[hidden]right-> ManpowerAvailabilityController
+ManpowerAvailabilityController -[hidden]right-> AllocationController
+AllocationController -[hidden]right-> ComparisonController
+ReallocationController -[hidden]right-> LateRequestReviewController
+LateRequestReviewController -[hidden]right-> PublishController
+DashboardController -[hidden]down-> ReallocationController
+StaffGroup -[hidden]right-> RosterWeekGroup
+RosterWeekGroup -[hidden]right-> LateRequestGroup
+AvailabilityEntry -[hidden]right-> ValidationResult
+
+LateRequestForm -[hidden]right-> PreferencesView
+AccessRole -[hidden]right-> JobRole
+V -[hidden]down-> EN
+LateRequestController -[hidden]right-> PreferenceController
+JobWithdrawalController -[hidden]right-> DashboardController
+ComparisonController -[hidden]right-> ValidationController
+ValidationController -[hidden]right-> ReallocationController
+PublishController -[hidden]right-> AccountController
+JobsWorkloadController -[hidden]down-> JobWithdrawalController
+JobWithdrawalController -[hidden]down-> AllocationController
+AllocationController -[hidden]down-> LateRequestReviewController
+legend right
+  **Notation**
+  Solid line with open arrow: association (permanent reference, navigable)
+  Hollow diamond: aggregation (group holds members)
+  Filled diamond: composition (parts live and die with the whole)
+  Dashed open arrow: dependency (transient use). Unlabelled dashed arrows from a controller or entity
+  to a view, result or value object mean it creates that object; the others are labelled
+  <<include>> or <<extend>>.
+  **Notes**
+  Packages Boundary, Control and Entity group the classes by role.
+  Types: String, Integer, Decimal, Boolean, Date, Time, DateTime, File, List<T>, Map<K, V>.
+  Enumerations and value objects are listed at the bottom; view and result objects are
+  returned by controllers and shown by WebFrontend.
+  A Service needs 2 Engine Drivers, 1 Train Conductor and ceil(carriages / 2) each of
+  Assistant Conductors and Cleaners.
+  Controllers reach Staff, RosterWeek, Service, CrewPosition, Assignment and
+  AvailabilityEntry through StaffGroup and RosterWeekGroup, so only the groups are linked.
+  UC-07 "AvailabilityController" is named ManpowerAvailabilityController here.
+  UC-12 "LateRequestController" is named LateRequestReviewController here.
+  JobWithdrawalController handles UC-05 and its extension UC-14, since both hand
+  an assigned job back to the reallocation queue.
+  AllocationController handles UC-08 and UC-15. On a published roster, assign and
+  unassign also notify staff, and unassign moves the job to the reallocation queue.
+  ValidationController.findValidCandidates supplies the ranked candidates for
+  UC-08, UC-11 and UC-15 (on-call staff first when reallocating).
+  Manager-responsibility checks use StaffGroup.isResponsibleFor; week IDs and the
+  availability window (UC-02, UC-07) come from RosterWeekGroup.
+  RequestGroup (UC-05/06), ReallocationQueue (UC-13/14/15) and the RosterWeek queue
+  operations (UC-11/12) all describe the reallocation queue.
+  LateRequestQueue (UC-03) and LateRequestGroup (UC-12) both hold late requests.
+  UC-13 adds cover periods through StaffGroup.addCover, while UC-03 reads them from
+  CoverPeriodGroup: another consolidation candidate.
+endlegend
+@enduml
